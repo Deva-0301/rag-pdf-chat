@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAG PDF Chat</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1c2330;
+      --muted: #667085;
+      --border: #e3e6ec;
+      --accent: #2f5bea;
+      --accent-text: #ffffff;
+      --user-bg: #2f5bea;
+      --bot-bg: #eef1f6;
+      --warn: #b54708;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12151b;
+        --card: #1a1f28;
+        --text: #e8ebf1;
+        --muted: #98a2b3;
+        --border: #2b3240;
+        --accent: #5b82ff;
+        --bot-bg: #242b37;
+        --user-bg: #3a5fe0;
+        --warn: #f79009;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 780px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 0.95rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    label.small { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+    input[type="file"] { flex: 1; min-width: 200px; color: var(--text); }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--text);
+      font: inherit;
+    }
+    textarea { resize: vertical; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      font-weight: 500;
+    }
+    #status { margin-top: 10px; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; }
+    #status.error { color: var(--warn); }
+    #chat {
+      min-height: 220px;
+      max-height: 55vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 4px 2px 8px;
+    }
+    .empty { color: var(--muted); text-align: center; margin: auto; padding: 24px 8px; }
+    .msg { max-width: 92%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+    .msg.user { align-self: flex-end; background: var(--user-bg); color: #fff; border-bottom-right-radius: 4px; }
+    .msg.bot { align-self: flex-start; background: var(--bot-bg); border-bottom-left-radius: 4px; }
+    .msg.bot.notfound { border: 1px dashed var(--border); color: var(--muted); }
+    .msg.thinking { color: var(--muted); font-style: italic; }
+    details.sources { margin-top: 10px; font-size: 0.88rem; white-space: normal; }
+    details.sources summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+    .src { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+    .src .meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 4px; }
+    .src .txt { white-space: pre-wrap; }
+    .compose { display: flex; gap: 8px; margin-top: 10px; }
+    .compose input { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>RAG PDF Chat</h1>
+    <p class="sub">Upload a PDF, then ask questions. Answers come only from the document, with the source passages shown.</p>
+
+    <!-- 1. Document -->
+    <div class="card">
+      <label class="small" for="pdfFile">1. Upload a PDF (max 10 MB, text-based)</label>
+      <div class="row">
+        <input id="pdfFile" type="file" accept="application/pdf" />
+        <button id="uploadBtn">Upload</button>
+      </div>
+      <div style="margin-top: 12px">
+        <label class="small" for="docSelect">Or pick a document you uploaded earlier</label>
+        <select id="docSelect"><option value="">No documents yet</option></select>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <!-- 2. Chat -->
+    <div class="card">
+      <label class="small">2. Ask about the document</label>
+      <div id="chat"><div class="empty">Upload or select a document to start.</div></div>
+
+      <form class="compose" id="chatForm">
+        <input id="question" type="text" placeholder="e.g. What is natural language interaction?" autocomplete="off" maxlength="1000" />
+        <button id="sendBtn" type="submit">Ask</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const chat = $("chat");
+    const statusEl = $("status");
+    let docId = null;
+    let busy = false;
+
+    /* ---------- helpers ---------- */
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.className = isError ? "error" : "";
+    }
+
+    // Escape HTML first, then turn **bold** into <strong> (so model output can never inject markup).
+    function formatAnswer(text) {
+      const safe = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    }
+
+    function clearEmpty() {
+      const e = chat.querySelector(".empty");
+      if (e) e.remove();
+    }
+
+    function addMessage(kind, text) {
+      clearEmpty();
+      const div = document.createElement("div");
+      div.className = "msg " + kind;
+      if (kind === "bot") div.innerHTML = formatAnswer(text);
+      else div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div;
+    }
+
+    function addSources(msgEl, sources) {
+      if (!sources || !sources.length) return;
+      const details = document.createElement("details");
+      details.className = "sources";
+      const summary = document.createElement("summary");
+      summary.textContent = `Sources (${sources.length})`;
+      details.appendChild(summary);
+      sources.forEach((s, i) => {
+        const box = document.createElement("div");
+        box.className = "src";
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `Source ${i + 1} · page ${s.page} · similarity ${s.score}`;
+        const txt = document.createElement("div");
+        txt.className = "txt";
+        txt.textContent = s.text;
+        box.append(meta, txt);
+        details.appendChild(box);
+      });
+      msgEl.appendChild(details);
+    }
+
+    function setBusy(value) {
+      busy = value;
+      $("sendBtn").disabled = value;
+      $("uploadBtn").disabled = value;
+    }
+
+    // Read JSON safely: the server sends JSON for its own errors, but proxies/hosts may send HTML.
+    async function readJson(res) {
+      const text = await res.text();
+      try { return JSON.parse(text); }
+      catch { return { error: `Unexpected response from server (HTTP ${res.status}).` }; }
+    }
+
+    /* ---------- documents ---------- */
+    // This browser remembers the ids of the documents it uploaded itself, so visitors
+    // never see each other's files. (localStorage can be blocked, so every use is wrapped.)
+    function getSavedIds() {
+      try { return JSON.parse(localStorage.getItem("ragDocIds") || "[]"); }
+      catch { return []; }
+    }
+    function saveIds(ids) {
+      try { localStorage.setItem("ragDocIds", JSON.stringify(ids)); } catch { /* ignore */ }
+    }
+
+    async function loadDocuments(selectId) {
+      try {
+        const ids = getSavedIds();
+        if (selectId && !ids.includes(selectId)) ids.push(selectId);
+        const sel = $("docSelect");
+        if (ids.length === 0) {
+          sel.innerHTML = '<option value="">No documents yet</option>';
+          docId = null;
+          return;
+        }
+        const res = await fetch("/documents?ids=" + encodeURIComponent(ids.join(",")));
+        const docs = await readJson(res);
+        sel.innerHTML = "";
+        if (!Array.isArray(docs) || docs.length === 0) {
+          sel.innerHTML = '<option value="">No documents yet</option>';
+          docId = null;
+          saveIds([]); // the server no longer has them (e.g. after a redeploy)
+          return;
+        }
+        saveIds(docs.map((d) => d.docId)); // keep only ids the server still has
+        docs.forEach((d) => {
+          const opt = document.createElement("option");
+          opt.value = d.docId;
+          opt.textContent = `${d.name} (${d.chunks} chunks)`;
+          sel.appendChild(opt);
+        });
+        const pick = selectId || docs[docs.length - 1].docId;
+        sel.value = pick;
+        docId = pick;
+      } catch {
+        /* the list is a convenience; ignore failures */
+      }
+    }
+
+    $("docSelect").addEventListener("change", (e) => {
+      docId = e.target.value || null;
+      chat.innerHTML = '<div class="empty">Ask a question about this document.</div>';
+    });
+
+    $("uploadBtn").addEventListener("click", async () => {
+      const file = $("pdfFile").files[0];
+      if (!file) return setStatus("Choose a PDF first.", true);
+      if (file.size > 10 * 1024 * 1024) return setStatus("That file is over 10 MB.", true);
+
+      const form = new FormData();
+      form.append("pdf", file);
+      setBusy(true);
+      setStatus("Reading, chunking and embedding the PDF... this can take 10-30 seconds.");
+      try {
+        const res = await fetch("/upload", { method: "POST", body: form });
+        const data = await readJson(res);
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        docId = data.docId;
+        await loadDocuments(data.docId);
+        setStatus(`Ready: ${data.name} (${data.pages} pages, ${data.chunks} chunks).`);
+        chat.innerHTML = '<div class="empty">Ask a question about the document.</div>';
+        $("question").focus();
+      } catch (err) {
+        setStatus(err.message, true);
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    /* ---------- asking ---------- */
+    async function ask(questionToSend, shownText) {
+      if (busy) return;
+      if (!docId) return setStatus("Upload or select a document first.", true);
+      setStatus("");
+      addMessage("user", shownText || questionToSend);
+      const thinking = addMessage("bot thinking", "Searching the document...");
+      setBusy(true);
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ docId, question: questionToSend }),
+        });
+        const data = await readJson(res);
+        if (!res.ok) throw new Error(data.error || "Something went wrong.");
+
+        thinking.remove();
+        const found = data.found !== false;
+        const msg = addMessage(found ? "bot" : "bot notfound", data.answer);
+        if (found) addSources(msg, data.sources);
+      } catch (err) {
+        thinking.remove();
+        addMessage("bot notfound", "Error: " + err.message);
+      } finally {
+        setBusy(false);
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
+
+    $("chatForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = $("question").value.trim();
+      if (!q) return;
+      $("question").value = "";
+      ask(q);
+    });
+
+    /* ---------- on page load ---------- */
+    // Fill the dropdown with this browser's earlier uploads and select the newest.
+    loadDocuments().then(() => {
+      if (docId) chat.innerHTML = '<div class="empty">Ask a question about the document.</div>';
+    });
+  </script>
+</body>
+</html>
