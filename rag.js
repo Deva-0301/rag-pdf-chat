@@ -1,15 +1,18 @@
 // rag.js — the whole RAG pipeline, written by hand so every step is visible.
 //
-//   PDF  ->  pages of text  ->  chunks  ->  embeddings  ->  (stored)
-//   question -> embedding -> top-k similar chunks -> prompt -> Gemini -> answer + sources
+//   PDF  ->  pages of text  ->  chunks  ->  embeddings  ->  stored in Qdrant
+//   question -> embedding -> Qdrant finds the closest chunks -> prompt -> Gemini -> answer + sources
 
 require("dotenv").config();
 const { GoogleGenAI } = require("@google/genai");
 const { PDFParse } = require("pdf-parse");
-const NOT_FOUND = "I couldn't find that in the document.";
+const qdrant = require("./qdrant"); // the vector database (see qdrant.js)
 
 const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
 const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || "gemini-3.6-flash";
+
+// The exact sentence the model must use when the document has no answer.
+const NOT_FOUND = "I couldn't find that in the document.";
 
 // Created lazily so the offline tests work without an API key.
 let _ai = null;
@@ -71,7 +74,6 @@ function chunkText(text, size = 800, overlap = 150) {
   return chunks;
 }
 
-
 // Chunk page by page so every chunk knows which page it came from.
 function chunkPages(pages, size = 800, overlap = 150) {
   const out = [];
@@ -119,6 +121,11 @@ async function embedQuestion(question) {
 /* ------------------------------------------------------------------ */
 /* STEP 4: cosine similarity + retrieval                               */
 /* ------------------------------------------------------------------ */
+// NOTE: the app now lets Qdrant do the searching (see answerQuestion below).
+// cosineSimilarity, topK and retrieve are the hand-written version I built first
+// to understand how retrieval works. They are kept here as the reference
+// ("this is what Qdrant does for us"), and they are still unit-tested.
+//
 // Cosine similarity = how closely two vectors point in the same direction.
 // 1 = same meaning, around 0 = unrelated.
 function cosineSimilarity(a, b) {
@@ -169,8 +176,10 @@ ${context}
 Question: ${question}`;
 }
 
-async function answerQuestion(question, chunks, k = 4) {
-  const sources = await retrieve(question, chunks, k);
+// docId says WHICH pdf to search. Qdrant returns that pdf's k closest chunks.
+async function answerQuestion(question, docId, k = 4) {
+  const questionVector = await embedQuestion(question);
+  const sources = await qdrant.searchChunks(docId, questionVector, k);
   const prompt = buildPrompt(question, sources);
 
   const res = await ai().models.generateContent({
@@ -178,6 +187,7 @@ async function answerQuestion(question, chunks, k = 4) {
     contents: prompt,
   });
 
+  // The model sometimes writes a curly apostrophe; make it a plain one before comparing.
   const answer = (res.text || "").trim().replace(/’/g, "'");
   const found = !answer.startsWith(NOT_FOUND);
 

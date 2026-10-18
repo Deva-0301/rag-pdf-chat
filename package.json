@@ -5,10 +5,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:offline": "node test-offline.js"
+    "test:offline": "node test-offline.js",
+    "test:qdrant": "node test-qdrant.js"
   },
   "dependencies": {
     "@google/genai": "latest",
+    
+    "@qdrant/js-client-rest": "^1.19.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.7.1",
