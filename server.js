@@ -81,7 +81,12 @@ app.post("/upload", upload.single("pdf"), async (req, res) => {
     });
   } catch (err) {
     console.error("Upload failed:", err);
-    res.status(500).json({ error: "Could not process the PDF.", detail: err.message });
+    if (rag.isRateLimitError(err)) {
+      return res.status(429).json({
+        error: "The demo has reached its usage limit. Please try again later.",
+      });
+    }
+    res.status(500).json({ error: "Could not process the PDF." });
   }
 });
 
@@ -106,7 +111,13 @@ app.post("/chat", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("Chat failed:", err);
-    res.status(500).json({ error: "Could not answer the question.", detail: err.message });
+    // Free-tier limit reached: tell the visitor clearly instead of a generic error.
+    if (rag.isRateLimitError(err)) {
+      return res.status(429).json({
+        error: "The demo has reached its usage limit. Please try again later.",
+      });
+    }
+    res.status(500).json({ error: "Could not answer the question." });
   }
 });
 
@@ -118,12 +129,13 @@ app.get("/documents", async (req, res) => {
     res.json(await qdrant.listDocuments());
   } catch (err) {
     console.error("Listing documents failed:", err);
-    res.status(500).json({ error: "Could not list documents.", detail: err.message });
+    res.status(500).json({ error: "Could not list documents." });
   }
 });
 
 app.delete("/documents/:docId", async (req, res) => {
   try {
+    
     const { docId } = req.params;
     if (!(await qdrant.documentExists(docId))) {
       return res.status(404).json({ error: "Document not found." });
@@ -132,7 +144,7 @@ app.delete("/documents/:docId", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("Delete failed:", err);
-    res.status(500).json({ error: "Could not delete the document.", detail: err.message });
+    res.status(500).json({ error: "Could not delete the document." });
   }
 });
 

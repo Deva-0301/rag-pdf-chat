@@ -178,6 +178,7 @@ Question: ${question}`;
 
 // docId says WHICH pdf to search. Qdrant returns that pdf's k closest chunks.
 async function answerQuestion(question, docId, k = 4) {
+  
   const questionVector = await embedQuestion(question);
   const sources = await qdrant.searchChunks(docId, questionVector, k);
   const prompt = buildPrompt(question, sources);
@@ -205,6 +206,13 @@ async function answerQuestion(question, docId, k = 4) {
   };
 }
 
+// True when Gemini says "too many requests" or the free quota is used up (HTTP 429).
+// We check the status code first, then the message text, because error shapes can vary.
+function isRateLimitError(err) {
+  const text = String((err && err.message) || "");
+  return (err && err.status === 429) || /429|RESOURCE_EXHAUSTED|quota/i.test(text);
+}
+
 module.exports = {
   extractPages,
   chunkText,
@@ -217,4 +225,5 @@ module.exports = {
   retrieve,
   buildPrompt,
   answerQuestion,
+  isRateLimitError,
 };
