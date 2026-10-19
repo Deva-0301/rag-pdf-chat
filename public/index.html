@@ -1,450 +1,666 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RAG PDF Chat</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG PDF Chat</title>
 
-  <!-- Runs before the page is drawn, so the saved theme is applied with no flash.
+    <!-- Runs before the page is drawn, so the saved theme is applied with no flash.
        Order: saved choice -> your system setting -> light. -->
-  <script>
-    (function () {
-      var theme = null;
-      try { theme = localStorage.getItem("theme"); } catch (e) {}
-      if (theme !== "light" && theme !== "dark") {
-        theme = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      }
-      document.documentElement.setAttribute("data-theme", theme);
-    })();
-  </script>
+    <script>
+      (function () {
+        var theme = null;
+        try {
+          theme = localStorage.getItem("theme");
+        } catch (e) {}
+        if (theme !== "light" && theme !== "dark") {
+          theme =
+            window.matchMedia &&
+            matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
 
-  <style>
-    /* ---------- Colours ----------
+    <style>
+      /* ---------- Colours ----------
        Every colour on the page comes from these variables.
        The light set is the default; the dark set replaces it when <html data-theme="dark">. */
-    :root {
-      color-scheme: light;
-      --bg: #EFF7F7;            /* page background */
-      --card: #FFFFFF;          /* cards */
-      --input: #E2F0F1;         /* inputs, answer bubble */
-      --border: #C3DDDF;
-      --text: #003135;
-      --muted: #3E6B6F;
-      --accent: #0FA4AF;        /* Upload and Ask buttons */
-      --accent-hover: #2BB8C2;
-      --on-accent: #003135;     /* text on the accent buttons */
-      --user-bg: #024950;       /* your message bubble */
-      --on-user: #FFFFFF;
-      --source-bg: #DAF1F2;     /* source passages */
-      --danger: #964734;        /* delete and errors */
-      --success: #15803D;
-      --focus: #024950;         /* keyboard focus ring (also used for the Sources link) */
-    }
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --bg: #003135;
-      --card: #024950;
-      --input: #00282C;
-      --border: #0B6A72;
-      --text: #E6F6F7;
-      --muted: #9FC9CC;
-      --accent: #0FA4AF;
-      --accent-hover: #2BB8C2;
-      --on-accent: #003135;
-      --user-bg: #0FA4AF;
-      --on-user: #003135;
-      --source-bg: #024950;
-      --danger: #F4977F;
-      --success: #6EE7A8;
-      --focus: #5ED3DC;
-    }
+      :root {
+        color-scheme: light;
+        --bg: #eff7f7; /* page background */
+        --card: #ffffff; /* cards */
+        --input: #e2f0f1; /* inputs, answer bubble */
+        --border: #c3dddf;
+        --text: #003135;
+        --muted: #3e6b6f;
+        --accent: #0fa4af; /* Upload and Ask buttons */
+        --accent-hover: #2bb8c2;
+        --on-accent: #003135; /* text on the accent buttons */
+        --user-bg: #024950; /* your message bubble */
+        --on-user: #ffffff;
+        --source-bg: #daf1f2; /* source passages */
+        --danger: #964734; /* delete and errors */
+        --success: #15803d;
+        --focus: #024950; /* keyboard focus ring (also used for the Sources link) */
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #003135;
+        --card: #024950;
+        --input: #00282c;
+        --border: #0b6a72;
+        --text: #e6f6f7;
+        --muted: #9fc9cc;
+        --accent: #0fa4af;
+        --accent-hover: #2bb8c2;
+        --on-accent: #003135;
+        --user-bg: #0fa4af;
+        --on-user: #003135;
+        --source-bg: #024950;
+        --danger: #f4977f;
+        --success: #6ee7a8;
+        --focus: #5ed3dc;
+      }
 
-    /* ---------- Base ---------- */
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    }
-    .wrap { max-width: 780px; margin: 0 auto; padding: 24px 16px 48px; }
-    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
-    h1 { font-size: 1.4rem; margin: 0 0 4px; }
-    .sub { color: var(--muted); margin: 0; font-size: 0.95rem; max-width: 60ch; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    #docSelect { flex: 1; width: auto; min-width: 200px; }
-    label.small { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+      /* ---------- Base ---------- */
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.5 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      .wrap {
+        max-width: 780px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0;
+        font-size: 0.95rem;
+        max-width: 60ch;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      #docSelect {
+        flex: 1;
+        width: auto;
+        min-width: 200px;
+      }
+      label.small {
+        font-size: 0.85rem;
+        color: var(--muted);
+        display: block;
+        margin-bottom: 6px;
+      }
 
-    /* Keyboard focus: one visible ring for everything clickable or typeable. */
-    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      /* Keyboard focus: one visible ring for everything clickable or typeable. */
+      :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
 
-    /* ---------- Form controls ---------- */
-    input[type="file"] { flex: 1; min-width: 200px; color: var(--text); }
-    input[type="file"]::file-selector-button {
-      margin-right: 10px;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--input);
-      color: var(--text);
-      font: inherit;
-      cursor: pointer;
-    }
-    select, textarea, input[type="text"] {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--input);
-      color: var(--text);
-      font: inherit;
-    }
-    input[type="text"]::placeholder { color: var(--muted); opacity: 1; }
+      /* ---------- Form controls ---------- */
+      input[type="file"] {
+        flex: 1;
+        min-width: 200px;
+        color: var(--text);
+      }
+      input[type="file"]::file-selector-button {
+        margin-right: 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--input);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      select,
+      textarea,
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--input);
+        color: var(--text);
+        font: inherit;
+      }
+      input[type="text"]::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
 
-    button {
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 16px;
-      background: var(--accent);
-      color: var(--on-accent);
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover:not(:disabled) { background: var(--accent-hover); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 16px;
+        background: var(--accent);
+        color: var(--on-accent);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        background: var(--accent-hover);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-    /* Delete: outlined, in the "delete" colour. */
-    button.danger {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid var(--danger);
-      font-weight: 500;
-    }
-    button.danger:hover:not(:disabled) { background: var(--input); }
+      /* Delete: outlined, in the "delete" colour. */
+      button.danger {
+        background: transparent;
+        color: var(--danger);
+        border: 1px solid var(--danger);
+        font-weight: 500;
+      }
+      button.danger:hover:not(:disabled) {
+        background: var(--input);
+      }
 
-    /* Theme toggle (top right). */
-    button.theme {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-      padding: 8px 12px;
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      font-weight: 500;
-      font-size: 0.9rem;
-    }
-    button.theme:hover:not(:disabled) { background: var(--input); }
-    button.theme svg { width: 18px; height: 18px; flex-shrink: 0; }
+      /* Theme toggle (top right). */
+      button.theme {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        padding: 8px 12px;
+        background: var(--card);
+        color: var(--text);
+        border: 1px solid var(--border);
+        font-weight: 500;
+        font-size: 0.9rem;
+      }
+      button.theme:hover:not(:disabled) {
+        background: var(--input);
+      }
+      button.theme svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
 
-    /* ---------- Status line ---------- */
-    #status { margin-top: 10px; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; }
-    #status.error { color: var(--danger); }
-    #status.success { color: var(--success); }
+      /* ---------- Status line ---------- */
+      #status {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: var(--muted);
+        min-height: 1.3em;
+      }
+      #status.error {
+        color: var(--danger);
+      }
+      #status.success {
+        color: var(--success);
+      }
 
-    /* ---------- Chat ---------- */
-    #chat {
-      min-height: 220px;
-      max-height: 55vh;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 4px 2px 8px;
-    }
-    .empty { color: var(--muted); text-align: center; margin: auto; padding: 24px 8px; }
-    .msg { max-width: 92%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
-    .msg.user { align-self: flex-end; background: var(--user-bg); color: var(--on-user); border-bottom-right-radius: 4px; }
-    .msg.bot { align-self: flex-start; background: var(--input); border-bottom-left-radius: 4px; }
-    .msg.bot.notfound { border: 1px dashed var(--border); color: var(--muted); }
-    .msg.thinking { color: var(--muted); font-style: italic; }
+      /* ---------- Chat ---------- */
+      #chat {
+        min-height: 220px;
+        max-height: 55vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 4px 2px 8px;
+      }
+      .empty {
+        color: var(--muted);
+        text-align: center;
+        margin: auto;
+        padding: 24px 8px;
+      }
+      .msg {
+        max-width: 92%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .msg.user {
+        align-self: flex-end;
+        background: var(--user-bg);
+        color: var(--on-user);
+        border-bottom-right-radius: 4px;
+      }
+      .msg.bot {
+        align-self: flex-start;
+        background: var(--input);
+        border-bottom-left-radius: 4px;
+      }
+      .msg.bot.notfound {
+        border: 1px dashed var(--border);
+        color: var(--muted);
+      }
+      .msg.thinking {
+        color: var(--muted);
+        font-style: italic;
+      }
 
-    details.sources { margin-top: 10px; font-size: 0.88rem; white-space: normal; }
-    details.sources summary { cursor: pointer; color: var(--focus); font-weight: 600; }
-    .src { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--source-bg); }
-    .src .meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 4px; }
-    .src .txt { white-space: pre-wrap; }
+      details.sources {
+        margin-top: 10px;
+        font-size: 0.88rem;
+        white-space: normal;
+      }
+      details.sources summary {
+        cursor: pointer;
+        color: var(--focus);
+        font-weight: 600;
+      }
+      .src {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--source-bg);
+      }
+      .src .meta {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-bottom: 4px;
+      }
+      .src .txt {
+        white-space: pre-wrap;
+      }
 
-    .compose { display: flex; gap: 8px; margin-top: 10px; }
-    .compose input { flex: 1; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1>RAG PDF Chat</h1>
-        <p class="sub">Upload a PDF, then ask questions. Answers come only from the document, with the source passages shown.</p>
-      </div>
-      <!-- Switches between the light and dark colour sets. -->
-      <button id="themeBtn" type="button" class="theme" aria-label="Switch to dark theme">
-        <span id="themeIcon" aria-hidden="true"></span>
-        <span id="themeLabel">Dark</span>
-      </button>
-    </div>
-
-    <!-- 1. Document -->
-    <div class="card">
-      <label class="small" for="pdfFile">1. Upload a PDF (max 10 MB, text-based)</label>
-      <div class="row">
-        <input id="pdfFile" type="file" accept="application/pdf" />
-        <button id="uploadBtn">Upload</button>
-      </div>
-      <div style="margin-top: 12px">
-        <label class="small" for="docSelect">Or pick a document you uploaded earlier</label>
-        <div class="row">
-          <select id="docSelect"><option value="">No documents yet</option></select>
-          <button id="deleteBtn" type="button" class="danger">Delete</button>
+      .compose {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .compose input {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div>
+          <h1>RAG PDF Chat</h1>
+          <p class="sub">
+            Upload a PDF, then ask questions. Answers come only from the
+            document, with the source passages shown.
+          </p>
         </div>
+        <!-- Switches between the light and dark colour sets. -->
+        <button
+          id="themeBtn"
+          type="button"
+          class="theme"
+          aria-label="Switch to dark theme"
+        >
+          <span id="themeIcon" aria-hidden="true"></span>
+          <span id="themeLabel">Dark</span>
+        </button>
       </div>
-      <div id="status" role="status"></div>
+
+      <!-- 1. Document -->
+      <div class="card">
+        <label class="small" for="pdfFile"
+          >1. Upload a PDF (max 10 MB, text-based)</label
+        >
+        <div class="row">
+          <input id="pdfFile" type="file" accept="application/pdf" />
+          <button id="uploadBtn">Upload</button>
+        </div>
+        <div style="margin-top: 12px">
+          <label class="small" for="docSelect"
+            >Or pick a document you uploaded earlier</label
+          >
+          <div class="row">
+            <select id="docSelect">
+              <option value="">No documents yet</option>
+            </select>
+            <button id="deleteBtn" type="button" class="danger">Delete</button>
+          </div>
+        </div>
+        <div id="status" role="status"></div>
+      </div>
+
+      <!-- 2. Chat -->
+      <div class="card">
+        <label class="small">2. Ask about the document</label>
+        <div id="chat">
+          <div class="empty">Upload or select a document to start.</div>
+        </div>
+
+        <form class="compose" id="chatForm">
+          <input
+            id="question"
+            type="text"
+            placeholder="e.g. What is natural language interaction?"
+            aria-label="Your question"
+            autocomplete="off"
+            maxlength="1000"
+          />
+          <button id="sendBtn" type="submit">Ask</button>
+        </form>
+      </div>
     </div>
 
-    <!-- 2. Chat -->
-    <div class="card">
-      <label class="small">2. Ask about the document</label>
-      <div id="chat"><div class="empty">Upload or select a document to start.</div></div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const chat = $("chat");
+      const statusEl = $("status");
+      let docId = null;
+      let busy = false;
 
-      <form class="compose" id="chatForm">
-        <input id="question" type="text" placeholder="e.g. What is natural language interaction?" aria-label="Your question" autocomplete="off" maxlength="1000" />
-        <button id="sendBtn" type="submit">Ask</button>
-      </form>
-    </div>
-  </div>
+      // Sends the access code with every API call. Asks for it once per browser tab.
+      async function apiFetch(url, options = {}) {
+        let code = "";
+        try {
+          code = sessionStorage.getItem("accessCode") || "";
+        } catch (e) {}
+        if (!code) {
+          code = prompt("Enter the access code:") || "";
+          try {
+            sessionStorage.setItem("accessCode", code);
+          } catch (e) {}
+        }
+        const res = await fetch(url, {
+          ...options,
+          headers: { ...(options.headers || {}), "x-access-code": code },
+        });
+        if (res.status === 401) {
+          try {
+            sessionStorage.removeItem("accessCode");
+          } catch (e) {} // ask again next time
+        }
+        return res;
+      }
 
-  <script>
-    const $ = (id) => document.getElementById(id);
-    const chat = $("chat");
-    const statusEl = $("status");
-    let docId = null;
-    let busy = false;
+      /* ---------- theme toggle ---------- */
+      // Small icons: a moon (shown while the page is light, so clicking goes dark) and a sun (the reverse).
+      const MOON =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+      const SUN =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 
-    /* ---------- theme toggle ---------- */
-    // Small icons: a moon (shown while the page is light, so clicking goes dark) and a sun (the reverse).
-    const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
-    const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+      // Update the button so it always offers the theme you are NOT in.
+      function showThemeButton() {
+        const isDark =
+          document.documentElement.getAttribute("data-theme") === "dark";
+        $("themeIcon").innerHTML = isDark ? SUN : MOON;
+        $("themeLabel").textContent = isDark ? "Light" : "Dark";
+        $("themeBtn").setAttribute(
+          "aria-label",
+          isDark ? "Switch to light theme" : "Switch to dark theme",
+        );
+      }
 
-    // Update the button so it always offers the theme you are NOT in.
-    function showThemeButton() {
-      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-      $("themeIcon").innerHTML = isDark ? SUN : MOON;
-      $("themeLabel").textContent = isDark ? "Light" : "Dark";
-      $("themeBtn").setAttribute("aria-label", isDark ? "Switch to light theme" : "Switch to dark theme");
-    }
-
-    $("themeBtn").addEventListener("click", () => {
-      const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked: the choice just won't be remembered */ }
-      showThemeButton();
-    });
-    showThemeButton();
-
-    /* ---------- helpers ---------- */
-    // type is "" (normal), "error" (red) or "success" (green).
-    function setStatus(text, type = "") {
-      statusEl.textContent = text;
-      statusEl.className = type;
-    }
-
-    // Escape HTML first, then turn **bold** into <strong> (so model output can never inject markup).
-    function formatAnswer(text) {
-      const safe = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-      return safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    }
-
-    function clearEmpty() {
-      const e = chat.querySelector(".empty");
-      if (e) e.remove();
-    }
-
-    function addMessage(kind, text) {
-      clearEmpty();
-      const div = document.createElement("div");
-      div.className = "msg " + kind;
-      if (kind === "bot") div.innerHTML = formatAnswer(text);
-      else div.textContent = text;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-      return div;
-    }
-
-    function addSources(msgEl, sources) {
-      if (!sources || !sources.length) return;
-      const details = document.createElement("details");
-      details.className = "sources";
-      const summary = document.createElement("summary");
-      summary.textContent = `Sources (${sources.length})`;
-      details.appendChild(summary);
-      sources.forEach((s, i) => {
-        const box = document.createElement("div");
-        box.className = "src";
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = `Source ${i + 1} · page ${s.page} · similarity ${s.score}`;
-        const txt = document.createElement("div");
-        txt.className = "txt";
-        txt.textContent = s.text;
-        box.append(meta, txt);
-        details.appendChild(box);
+      $("themeBtn").addEventListener("click", () => {
+        const next =
+          document.documentElement.getAttribute("data-theme") === "dark"
+            ? "light"
+            : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try {
+          localStorage.setItem("theme", next);
+        } catch (e) {
+          /* storage blocked: the choice just won't be remembered */
+        }
+        showThemeButton();
       });
-      msgEl.appendChild(details);
-    }
+      showThemeButton();
 
-    function setBusy(value) {
-      busy = value;
-      $("sendBtn").disabled = value;
-      $("uploadBtn").disabled = value;
-      $("deleteBtn").disabled = value;
-    }
-
-    // Read JSON safely: the server sends JSON for its own errors, but proxies/hosts may send HTML.
-    async function readJson(res) {
-      const text = await res.text();
-      try { return JSON.parse(text); }
-      catch { return { error: `Unexpected response from server (HTTP ${res.status}).` }; }
-    }
-
-    /* ---------- documents ---------- */
-    // Ask the server for its document list and fill the dropdown.
-    async function loadDocuments(selectId) {
-      try {
-        const res = await fetch("/documents");
-        const docs = await readJson(res);
-        const sel = $("docSelect");
-        sel.innerHTML = "";
-        if (!Array.isArray(docs) || docs.length === 0) {
-          sel.innerHTML = '<option value="">No documents yet</option>';
-          docId = null;
-          return;
-        }
-        docs.forEach((d) => {
-          const opt = document.createElement("option");
-          opt.value = d.docId;
-          opt.textContent = `${d.name} (${d.chunks} chunks)`;
-          sel.appendChild(opt);
-        });
-        const pick = selectId || docs[docs.length - 1].docId;
-        sel.value = pick;
-        docId = pick;
-      } catch {
-        /* the list is a convenience; ignore failures */
+      /* ---------- helpers ---------- */
+      // type is "" (normal), "error" (red) or "success" (green).
+      function setStatus(text, type = "") {
+        statusEl.textContent = text;
+        statusEl.className = type;
       }
-    }
 
-    // Delete the selected document (asks first, then removes it from Qdrant).
-    $("deleteBtn").addEventListener("click", async () => {
-      if (!docId) return setStatus("Select a document first.", "error");
-      const label = $("docSelect").selectedOptions[0]?.textContent || "this document";
-      if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
-
-      setBusy(true);
-      try {
-        const res = await fetch("/documents/" + encodeURIComponent(docId), { method: "DELETE" });
-        const data = await readJson(res);
-        if (!res.ok) throw new Error(data.error || "Delete failed.");
-        docId = null;
-        await loadDocuments(); // refill the dropdown; selects the newest remaining document
-        chat.innerHTML = docId
-          ? '<div class="empty">Ask a question about this document.</div>'
-          : '<div class="empty">Upload or select a document to start.</div>';
-        setStatus("Document deleted.", "success");
-      } catch (err) {
-        setStatus(err.message, "error");
-      } finally {
-        setBusy(false);
+      // Escape HTML first, then turn **bold** into <strong> (so model output can never inject markup).
+      function formatAnswer(text) {
+        const safe = text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        return safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
       }
-    });
 
-    $("docSelect").addEventListener("change", (e) => {
-      docId = e.target.value || null;
-      chat.innerHTML = '<div class="empty">Ask a question about this document.</div>';
-    });
-
-    $("uploadBtn").addEventListener("click", async () => {
-      const file = $("pdfFile").files[0];
-      if (!file) return setStatus("Choose a PDF first.", "error");
-      if (file.size > 10 * 1024 * 1024) return setStatus("That file is over 10 MB.", "error");
-
-      const form = new FormData();
-      form.append("pdf", file);
-      setBusy(true);
-      setStatus("Reading, chunking and embedding the PDF... this can take 10-30 seconds.");
-      try {
-        const res = await fetch("/upload", { method: "POST", body: form });
-        const data = await readJson(res);
-        if (!res.ok) throw new Error(data.error || "Upload failed.");
-        docId = data.docId;
-        await loadDocuments(data.docId);
-        if (data.duplicate) {
-          setStatus(`This PDF was already uploaded as "${data.name}", so the existing copy is selected (${data.chunks} chunks).`, "success");
-        } else {
-          setStatus(`Ready: ${data.name} (${data.pages} pages, ${data.chunks} chunks).`, "success");
-        }
-        chat.innerHTML = '<div class="empty">Ask a question about the document.</div>';
-        $("question").focus();
-      } catch (err) {
-        setStatus(err.message, "error");
-      } finally {
-        setBusy(false);
+      function clearEmpty() {
+        const e = chat.querySelector(".empty");
+        if (e) e.remove();
       }
-    });
 
-    /* ---------- asking ---------- */
-    async function ask(questionToSend, shownText) {
-      if (busy) return;
-      if (!docId) return setStatus("Upload or select a document first.", "error");
-      setStatus("");
-      addMessage("user", shownText || questionToSend);
-      const thinking = addMessage("bot thinking", "Searching the document...");
-      setBusy(true);
-      try {
-        const res = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ docId, question: questionToSend }),
-        });
-        const data = await readJson(res);
-        if (!res.ok) throw new Error(data.error || "Something went wrong.");
-
-        thinking.remove();
-        const found = data.found !== false;
-        const msg = addMessage(found ? "bot" : "bot notfound", data.answer);
-        if (found) addSources(msg, data.sources);
-      } catch (err) {
-        thinking.remove();
-        addMessage("bot notfound", "Error: " + err.message);
-      } finally {
-        setBusy(false);
+      function addMessage(kind, text) {
+        clearEmpty();
+        const div = document.createElement("div");
+        div.className = "msg " + kind;
+        if (kind === "bot") div.innerHTML = formatAnswer(text);
+        else div.textContent = text;
+        chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
+        return div;
       }
-    }
 
-    $("chatForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const q = $("question").value.trim();
-      if (!q) return;
-      $("question").value = "";
-      ask(q);
-    });
+      function addSources(msgEl, sources) {
+        if (!sources || !sources.length) return;
+        const details = document.createElement("details");
+        details.className = "sources";
+        const summary = document.createElement("summary");
+        summary.textContent = `Sources (${sources.length})`;
+        details.appendChild(summary);
+        sources.forEach((s, i) => {
+          const box = document.createElement("div");
+          box.className = "src";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `Source ${i + 1} · page ${s.page} · similarity ${s.score}`;
+          const txt = document.createElement("div");
+          txt.className = "txt";
+          txt.textContent = s.text;
+          box.append(meta, txt);
+          details.appendChild(box);
+        });
+        msgEl.appendChild(details);
+      }
 
-    /* ---------- on page load ---------- */
-    // Fill the dropdown with this browser's earlier uploads and select the newest.
-    loadDocuments().then(() => {
-      if (docId) chat.innerHTML = '<div class="empty">Ask a question about the document.</div>';
-    });
-  </script>
-</body>
+      function setBusy(value) {
+        busy = value;
+        $("sendBtn").disabled = value;
+        $("uploadBtn").disabled = value;
+        $("deleteBtn").disabled = value;
+      }
+
+      // Read JSON safely: the server sends JSON for its own errors, but proxies/hosts may send HTML.
+      async function readJson(res) {
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return {
+            error: `Unexpected response from server (HTTP ${res.status}).`,
+          };
+        }
+      }
+
+      /* ---------- documents ---------- */
+      // Ask the server for its document list and fill the dropdown.
+      async function loadDocuments(selectId) {
+        try {
+          const res = await apiFetch("/documents");
+          const docs = await readJson(res);
+          const sel = $("docSelect");
+          sel.innerHTML = "";
+          if (!Array.isArray(docs) || docs.length === 0) {
+            sel.innerHTML = '<option value="">No documents yet</option>';
+            docId = null;
+            return;
+          }
+          docs.forEach((d) => {
+            const opt = document.createElement("option");
+            opt.value = d.docId;
+            opt.textContent = `${d.name} (${d.chunks} chunks)`;
+            sel.appendChild(opt);
+          });
+          const pick = selectId || docs[docs.length - 1].docId;
+          sel.value = pick;
+          docId = pick;
+        } catch {
+          /* the list is a convenience; ignore failures */
+        }
+      }
+
+      // Delete the selected document (asks first, then removes it from Qdrant).
+      $("deleteBtn").addEventListener("click", async () => {
+        if (!docId) return setStatus("Select a document first.", "error");
+        const label =
+          $("docSelect").selectedOptions[0]?.textContent || "this document";
+        if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+        setBusy(true);
+        try {
+          const res = await apiFetch("/documents/" + encodeURIComponent(docId), {
+            method: "DELETE",
+          });
+          const data = await readJson(res);
+          if (!res.ok) throw new Error(data.error || "Delete failed.");
+          docId = null;
+          await loadDocuments(); // refill the dropdown; selects the newest remaining document
+          chat.innerHTML = docId
+            ? '<div class="empty">Ask a question about this document.</div>'
+            : '<div class="empty">Upload or select a document to start.</div>';
+          setStatus("Document deleted.", "success");
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      $("docSelect").addEventListener("change", (e) => {
+        docId = e.target.value || null;
+        chat.innerHTML =
+          '<div class="empty">Ask a question about this document.</div>';
+      });
+
+      $("uploadBtn").addEventListener("click", async () => {
+        const file = $("pdfFile").files[0];
+        if (!file) return setStatus("Choose a PDF first.", "error");
+        if (file.size > 10 * 1024 * 1024)
+          return setStatus("That file is over 10 MB.", "error");
+
+        const form = new FormData();
+        form.append("pdf", file);
+        setBusy(true);
+        setStatus(
+          "Reading, chunking and embedding the PDF... this can take 10-30 seconds.",
+        );
+        try {
+          const res = await apiFetch("/upload", { method: "POST", body: form });
+          const data = await readJson(res);
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          docId = data.docId;
+          await loadDocuments(data.docId);
+          if (data.duplicate) {
+            setStatus(
+              `This PDF was already uploaded as "${data.name}", so the existing copy is selected (${data.chunks} chunks).`,
+              "success",
+            );
+          } else {
+            setStatus(
+              `Ready: ${data.name} (${data.pages} pages, ${data.chunks} chunks).`,
+              "success",
+            );
+          }
+          chat.innerHTML =
+            '<div class="empty">Ask a question about the document.</div>';
+          $("question").focus();
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      /* ---------- asking ---------- */
+      async function ask(questionToSend, shownText) {
+        if (busy) return;
+        if (!docId)
+          return setStatus("Upload or select a document first.", "error");
+        setStatus("");
+        addMessage("user", shownText || questionToSend);
+        const thinking = addMessage(
+          "bot thinking",
+          "Searching the document...",
+        );
+        setBusy(true);
+        try {
+          const res = await apiFetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ docId, question: questionToSend }),
+          });
+          const data = await readJson(res);
+          if (!res.ok) throw new Error(data.error || "Something went wrong.");
+
+          thinking.remove();
+          const found = data.found !== false;
+          const msg = addMessage(found ? "bot" : "bot notfound", data.answer);
+          if (found) addSources(msg, data.sources);
+        } catch (err) {
+          thinking.remove();
+          addMessage("bot notfound", "Error: " + err.message);
+        } finally {
+          setBusy(false);
+          chat.scrollTop = chat.scrollHeight;
+        }
+      }
+
+      $("chatForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const q = $("question").value.trim();
+        if (!q) return;
+        $("question").value = "";
+        ask(q);
+      });
+
+      /* ---------- on page load ---------- */
+      // Fill the dropdown with this browser's earlier uploads and select the newest.
+      loadDocuments().then(() => {
+        if (docId)
+          chat.innerHTML =
+            '<div class="empty">Ask a question about the document.</div>';
+      });
+    </script>
+  </body>
 </html>

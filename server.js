@@ -18,6 +18,16 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Simple gate: API calls must send the right access code in a header.
+// The code lives in an environment variable, never in the repo.
+function requireAccessCode(req, res, next) {
+  const expected = process.env.ACCESS_CODE;
+  if (!expected) return next(); // no code set (local development): allow everything
+  if (req.get("x-access-code") === expected) return next();
+  res.status(401).json({ error: "Wrong or missing access code." });
+}
+app.use(["/upload", "/chat", "/documents"], requireAccessCode);
+
 // Keep uploads in memory (we only need the text, not the file itself) and cap the size.
 const upload = multer({
   storage: multer.memoryStorage(),
