@@ -629,7 +629,7 @@
           const res = await apiFetch("/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ docId, question: questionToSend }),
+            body: JSON.stringify({ docIdnd }),
           });
           const data = await readJson(res);
           if (!res.ok) throw new Error(data.error || "Something went wrong.");

@@ -79,7 +79,7 @@ function chunkPages(pages, size = 800, overlap = 150) {
   const out = [];
   for (const { page, text } of pages) {
     for (const piece of chunkText(text, size, overlap)) {
-      if (piece.length < 50) continue; // skip page numbers and other noise
+      if (piece.length < 10) continue; // skip page numbers and other noise
       out.push({ text: piece, page });
     }
   }
@@ -213,6 +213,12 @@ function isRateLimitError(err) {
   return (err && err.status === 429) || /429|RESOURCE_EXHAUSTED|quota/i.test(text);
 }
 
+// True when Gemini says it is temporarily overloaded (HTTP 503 / UNAVAILABLE).
+function isOverloadedError(err) {
+  const text = String((err && err.message) || "");
+  return (err && err.status === 503) || /503|UNAVAILABLE|high demand/i.test(text);
+}
+
 module.exports = {
   extractPages,
   chunkText,
@@ -226,4 +232,5 @@ module.exports = {
   buildPrompt,
   answerQuestion,
   isRateLimitError,
+  isOverloadedError,
 };

@@ -4,47 +4,55 @@ Upload a PDF and ask questions about it. Answers come only from the document, wi
 
 **Live demo:** [click](https://rag-pdf-chat-3bsc.onrender.com/) (access code on request, see [Live demo notes](#live-demo-notes)). It also runs locally (see [Run locally](#run-locally)).
 
+
 ![Chat with sources](docs/screenshot-chat.png)
 ![Question the document cannot answer](docs/screenshot-notfound.png)
+ 
+
 
 Built with Node.js, Express, the Gemini API and the Qdrant vector database. The retrieval pipeline (chunking, embeddings, similarity search, grounded prompting) is written by hand, with no LangChain, so every step is visible in [`rag.js`](rag.js) and [`qdrant.js`](qdrant.js).
+ 
+
+
 
 ## Live demo notes
+ 
+
 
 - The demo is hosted on Render's free plan, so the first visit after a quiet period can take about a minute while the server wakes up.
 - It is gated by a shared access code, checked by Express middleware before any API route runs. Ask me for the code. Please don't upload private files, because everyone with the code sees the same document list.
 - It uses the free tier of the Gemini API, which has a small daily request limit. If the limit is reached, the app shows "The demo has reached its usage limit" and works again after the limit resets.
 
 ## Features
-
+ 
 - Upload a text-based PDF (up to 10 MB) and chat with it in the browser
 - Source citations on every answer (page number, similarity score and the exact passage), expandable in the UI
 - "I couldn't find that in the document" instead of invented answers, with no sources shown in that case
 - Documents are stored in Qdrant, so they survive server restarts
 - Duplicate uploads are recognised by a fingerprint of the file's contents, so the same PDF is not embedded twice
 - Delete a document from the page
-- Friendly message when the Gemini free-tier limit is reached, instead of a generic error
+- Friendly message when the Gemini free-tier limit is reached or the model is busy, instead of a generic error
 - Unit tests that run offline, plus a test script for the Qdrant code
 
 ## How it works
-
+ 
 **Uploading a PDF**
-
+ 
 1. **Extract** the text of each page (`pdf-parse`), keeping page numbers
 2. **Fingerprint** the file (SHA-256 of its bytes). If Qdrant already holds a document with that fingerprint, return it and stop
-3. **Chunk** each page into ~800-character pieces with 150 characters of overlap, ending on sentence boundaries where possible. Tiny fragments (page numbers, stray headings) are dropped
+3. **Chunk** each page into ~800-character pieces with 150 characters of overlap, ending on sentence boundaries where possible. Chunks shorter than 10 characters (for example a page holding only a number) are skipped
 4. **Embed** every chunk with Gemini (`gemini-embedding-001`, document mode), in batches of 50
 5. **Store** each chunk in Qdrant as a point: its vector plus a payload of `docId`, `docName`, `fileHash`, `page`, `text`
 
 **Asking a question**
-
+ 
 1. **Embed** the question (query mode)
 2. **Search** Qdrant for the 4 chunks closest in meaning, restricted to the selected document
 3. **Prompt** Gemini to answer using only those chunks, or to reply with the exact "couldn't find" sentence
 4. **Return** the answer with the source chunks, pages and scores (sources are left out when nothing relevant was found)
 
 ## Project structure
-
+ 
 | File | What it does |
 |---|---|
 | `rag.js` | The RAG pipeline: PDF text extraction, chunking, embeddings, prompt building, answering. Also keeps the hand-written `cosineSimilarity` / `topK` retrieval as a tested reference |
@@ -54,9 +62,9 @@ Built with Node.js, Express, the Gemini API and the Qdrant vector database. The 
 | `public/favicon.svg` | The browser tab icon |
 | `test-offline.js` | Unit tests that need no keys: chunking, cosine similarity, top-k, prompt building |
 | `test-qdrant.js` | Tests `qdrant.js` against a real cluster with fake vectors, in a temporary collection that is deleted afterwards |
-
+ 
 ## Tech stack
-
+ 
 Node.js 22.3 or newer, Express, Multer (uploads), pdf-parse, Gemini API (`@google/genai`) for embeddings and answers, Qdrant (`@qdrant/js-client-rest`) as the vector database, vanilla HTML/CSS/JS frontend. Deployed on Render (web service) with Qdrant Cloud.
 
 ## Run locally
@@ -64,7 +72,6 @@ Node.js 22.3 or newer, Express, Multer (uploads), pdf-parse, Gemini API (`@googl
 1. Create a free cluster on [Qdrant Cloud](https://cloud.qdrant.io) and copy its URL and API key.
 2. Get a Gemini API key from Google AI Studio.
 3. Set up and start the app:
-
 ```bash
 npm install
 cp .env.example .env     # on Windows: copy .env.example .env

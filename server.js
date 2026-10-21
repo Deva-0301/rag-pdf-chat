@@ -86,6 +86,11 @@ app.post("/upload", upload.single("pdf"), async (req, res) => {
         error: "The demo has reached its usage limit. Please try again later.",
       });
     }
+    if (rag.isOverloadedError(err)) {
+      return res.status(503).json({
+        error: "The AI service is busy right now. Please try again in a few seconds.",
+      });
+    }
     res.status(500).json({ error: "Could not process the PDF." });
   }
 });
@@ -117,6 +122,11 @@ app.post("/chat", async (req, res) => {
         error: "The demo has reached its usage limit. Please try again later.",
       });
     }
+    if (rag.isOverloadedError(err)) {
+      return res.status(503).json({
+        error: "The AI service is busy right now. Please try again in a few seconds.",
+      });
+    }
     res.status(500).json({ error: "Could not answer the question." });
   }
 });
@@ -135,7 +145,6 @@ app.get("/documents", async (req, res) => {
 
 app.delete("/documents/:docId", async (req, res) => {
   try {
-    
     const { docId } = req.params;
     if (!(await qdrant.documentExists(docId))) {
       return res.status(404).json({ error: "Document not found." });
